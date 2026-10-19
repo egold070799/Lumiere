@@ -1,5 +1,3 @@
-
-
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lumiere/extensions/l10n.dart';
@@ -34,8 +32,41 @@ class PlaylistCube extends StatelessWidget {
         children: [
           PlaylistArtwork(
             playlistArtwork: playlist['image'],
+            playlistTitle: playlist['title']?.toString(),
             size: size,
             cubeIcon: cubeIcon,
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 24, 12, 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.78),
+                    ],
+                  ),
+                ),
+                child: Text(
+                  playlist['title']?.toString() ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    shadows: const [
+                      Shadow(blurRadius: 8, color: Colors.black54),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
           if (showTypeLabel && playlist['image'] != null)
             Positioned(

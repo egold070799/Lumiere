@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,9 +8,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lumiere/extensions/l10n.dart';
 import 'package:lumiere/main.dart' show logger;
 import 'package:lumiere/services/artist_service.dart' show ytMusicClient;
+import 'package:lumiere/services/data_manager.dart';
 import 'package:lumiere/services/playlists_manager.dart';
+import 'package:lumiere/services/spotify_playlist_service.dart';
 import 'package:lumiere/utilities/flutter_toast.dart';
 import 'package:lumiere/utilities/formatter.dart';
+import 'package:lumiere/utilities/platform_utils.dart';
 import 'package:lumiere/utilities/url_launcher.dart';
 import 'package:lumiere/widgets/mini_player.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -35,6 +39,8 @@ class _ImportSpotifyPlaylistPageState extends State<ImportSpotifyPlaylistPage> {
   static const _batchPause = Duration(milliseconds: 150);
 
   final _csvController = TextEditingController();
+  final _spotifyLinkController = TextEditingController();
+  final _spotifyClientIdController = TextEditingController();
   final _playlistNameController = TextEditingController();
   bool _isImporting = false;
   String? _fileName;
@@ -42,8 +48,23 @@ class _ImportSpotifyPlaylistPageState extends State<ImportSpotifyPlaylistPage> {
   int _totalCount = 0;
 
   @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSpotifyClientId());
+  }
+
+  Future<void> _loadSpotifyClientId() async {
+    final savedClientId = await getData('settings', 'spotifyClientId');
+    if (savedClientId is String && mounted) {
+      _spotifyClientIdController.text = savedClientId;
+    }
+  }
+
+  @override
   void dispose() {
     _csvController.dispose();
+    _spotifyLinkController.dispose();
+    _spotifyClientIdController.dispose();
     _playlistNameController.dispose();
     super.dispose();
   }
@@ -121,31 +142,97 @@ class _ImportSpotifyPlaylistPageState extends State<ImportSpotifyPlaylistPage> {
         )
         .toList();
 
+    await _runImport(rows: rows, playlistName: playlistName);
+  }
+
+  Future<void> _importFromSpotifyLink() async {
+    if (_isImporting) return;
+    final link = _spotifyLinkController.text.trim();
+    final clientId = _spotifyClientIdController.text.trim();
+    if (SpotifyPlaylistService.parsePlaylistId(link) == null) {
+      showToast(
+        context,
+        'Enter a valid Spotify playlist link or Spotify playlist URI.',
+      );
+      return;
+    }
+    if (clientId.isEmpty) {
+      showToast(context, 'Enter your Spotify Developer app Client ID first.');
+      return;
+    }
+
+    await addOrUpdateData<String>('settings', 'spotifyClientId', clientId);
+    await _runImport(
+      playlistName: _playlistNameController.text.trim(),
+      loadSpotify: () => SpotifyPlaylistService().loadPlaylist(
+        playlistLink: link,
+        clientId: clientId,
+      ),
+    );
+  }
+
+  Future<void> _runImport({
+    List<_ImportRow>? rows,
+    required String playlistName,
+    Future<SpotifyPlaylistData> Function()? loadSpotify,
+  }) async {
+    if (_isImporting) return;
+    if (_importRunning) {
+      showToast(context, context.l10n!.spotifyPlaylistAlreadyImporting);
+      return;
+    }
+
     _importRunning = true;
     setState(() {
       _isImporting = true;
       _processedCount = 0;
-      _totalCount = rows.length;
+      _totalCount = rows?.length ?? 0;
     });
 
-    // Key results by their CSV position so retry results remain ordered.
-    final foundByIndex = <int, Map>{};
-    List<_ImportRow> missingRows;
-    var rateLimited = false;
     try {
+      var effectiveRows = rows;
+      var effectivePlaylistName = playlistName;
+      if (loadSpotify != null) {
+        final playlist = await loadSpotify();
+        effectiveRows = playlist.tracks.indexed
+            .map(
+              (entry) => (
+                index: entry.$1,
+                title: entry.$2.title,
+                artist: entry.$2.artist,
+              ),
+            )
+            .toList();
+        if (effectivePlaylistName.isEmpty) {
+          effectivePlaylistName = playlist.name;
+          _playlistNameController.text = playlist.name;
+        }
+        if (mounted) setState(() => _totalCount = effectiveRows!.length);
+      }
+
+      if (effectiveRows == null || effectiveRows.isEmpty) {
+        throw const SpotifyPlaylistImportException(
+          'The playlist does not contain any tracks to import.',
+        );
+      }
+      if (effectivePlaylistName.isEmpty) {
+        throw SpotifyPlaylistImportException(context.l10n!.enterPlaylistName);
+      }
+
+      // Keep results keyed by the source position to preserve playlist order.
+      final foundByIndex = <int, Map>{};
       final firstPass = await _searchBatch(
-        rows,
+        effectiveRows,
         onProgress: (n) {
           if (mounted) setState(() => _processedCount += n);
         },
       );
       foundByIndex.addAll(firstPass.found);
-      missingRows = firstPass.missing;
-      rateLimited = firstPass.rateLimited;
+      var missingRows = firstPass.missing;
+      var rateLimited = firstPass.rateLimited;
 
       // Retry misses once, unless the service is actively rate-limiting us.
       if (!rateLimited && missingRows.isNotEmpty) {
-        // Include the retry work in the progress total.
         if (mounted) setState(() => _totalCount += missingRows.length);
         final retryPass = await _searchBatch(
           missingRows,
@@ -157,43 +244,60 @@ class _ImportSpotifyPlaylistPageState extends State<ImportSpotifyPlaylistPage> {
         missingRows = retryPass.missing;
         rateLimited = retryPass.rateLimited;
       }
+
+      final foundSongs = [
+        for (final row in effectiveRows)
+          if (foundByIndex[row.index] case final song?) song,
+      ];
+
+      if (!mounted) return;
+      if (foundSongs.isNotEmpty) {
+        final (_, playlistId) = createCustomPlaylist(
+          effectivePlaylistName,
+          null,
+          context,
+        );
+        addSongsInCustomPlaylist(context, playlistId, foundSongs);
+      }
+
+      final resultText = rateLimited
+          ? '${context.l10n!.spotifyPlaylistImportFailed}\n${context.l10n!.spotifyPlaylistImportResult(foundSongs.length, effectiveRows.length)}'
+          : context.l10n!.spotifyPlaylistImportResult(
+              foundSongs.length,
+              effectiveRows.length,
+            );
+      if (missingRows.isNotEmpty) {
+        final missingText = missingRows
+            .map((row) => '${row.title} - ${row.artist}')
+            .join('\n');
+        await Clipboard.setData(ClipboardData(text: missingText));
+        if (mounted) {
+          showToastWithButton(
+            context,
+            '$resultText\n${context.l10n!.spotifyPlaylistMissingSongs}',
+            context.l10n!.copy,
+            () => Clipboard.setData(ClipboardData(text: missingText)),
+            duration: const Duration(seconds: 8),
+            icon: FluentIcons.warning_24_regular,
+          );
+        }
+      } else {
+        showToast(context, resultText);
+      }
+    } on SpotifyPlaylistImportException catch (error) {
+      if (mounted) showToast(context, error.message);
+    } catch (error, stackTrace) {
+      logger.log(
+        'Spotify playlist import failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        showToast(context, context.l10n!.spotifyPlaylistImportFailed);
+      }
     } finally {
       _importRunning = false;
-    }
-
-    final foundSongs = [
-      for (final row in rows)
-        if (foundByIndex[row.index] case final song?) song,
-    ];
-
-    if (!mounted) return;
-    final (_, playlistId) = createCustomPlaylist(playlistName, null, context);
-    addSongsInCustomPlaylist(context, playlistId, foundSongs);
-    setState(() => _isImporting = false);
-
-    final resultText = rateLimited
-        ? '${context.l10n!.spotifyPlaylistImportFailed}\n${context.l10n!.spotifyPlaylistImportResult(foundSongs.length, rows.length)}'
-        : context.l10n!.spotifyPlaylistImportResult(
-            foundSongs.length,
-            rows.length,
-          );
-    if (missingRows.isNotEmpty) {
-      final missingText = missingRows
-          .map((row) => '${row.title} - ${row.artist}')
-          .join('\n');
-      await Clipboard.setData(ClipboardData(text: missingText));
-      if (mounted) {
-        showToastWithButton(
-          context,
-          '$resultText\n${context.l10n!.spotifyPlaylistMissingSongs}',
-          context.l10n!.copy,
-          () => Clipboard.setData(ClipboardData(text: missingText)),
-          duration: const Duration(seconds: 8),
-          icon: FluentIcons.warning_24_regular,
-        );
-      }
-    } else {
-      showToast(context, resultText);
+      if (mounted) setState(() => _isImporting = false);
     }
   }
 
@@ -326,6 +430,87 @@ class _ImportSpotifyPlaylistPageState extends State<ImportSpotifyPlaylistPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(context.l10n!.importSpotifyPlaylistInstructions),
+            if (isAndroidPlatform) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _spotifyLinkController,
+                enabled: !_isImporting,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: context.l10n!.spotifyPlaylistLinkLabel,
+                  hintText: context.l10n!.spotifyPlaylistLinkHint,
+                  prefixIcon: const Icon(FluentIcons.link_24_regular),
+                  filled: true,
+                  fillColor: colorScheme.surfaceContainerHigh,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _spotifyClientIdController,
+                enabled: !_isImporting,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  labelText: context.l10n!.spotifyClientIdLabel,
+                  hintText: context.l10n!.spotifyClientIdHint,
+                  prefixIcon: const Icon(FluentIcons.key_24_regular),
+                  filled: true,
+                  fillColor: colorScheme.surfaceContainerHigh,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                context.l10n!.spotifyClientIdHelp,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      const ClipboardData(text: spotifyRedirectUri),
+                    );
+                    if (context.mounted) {
+                      showToast(context, 'Spotify redirect URI copied');
+                    }
+                  },
+                  icon: const Icon(FluentIcons.copy_24_regular),
+                  label: const Text('Copy redirect URI'),
+                ),
+              ),
+              const SizedBox(height: 4),
+              OutlinedButton.icon(
+                onPressed: _isImporting ? null : _importFromSpotifyLink,
+                icon: _isImporting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(FluentIcons.arrow_download_24_regular),
+                label: Text(
+                  _isImporting
+                      ? context.l10n!.spotifyPlaylistImporting
+                      : context.l10n!.spotifyImportFromLink,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                context.l10n!.spotifyPlaylistImportUnavailable,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 18),
+              Center(child: Text(context.l10n!.spotifyImportOrCsv)),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => launchURL(

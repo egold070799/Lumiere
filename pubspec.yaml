@@ -5,7 +5,7 @@ repository: https://github.com/egold070799/Lumiere
 issue_tracker: https://github.com/egold070799/Lumiere/issues
 
 publish_to: 'none'
-version: 10.5.3+185 # run update.sh after changing the version
+version: 10.5.4+186 # run update.sh after changing the version
 
 environment:
   sdk: '>=3.13.0 <4.0.0'
@@ -16,6 +16,7 @@ dependencies:
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   cached_network_image: ^4.0.4
+  crypto: ^3.0.7
   dynamic_color: ^2.1.0
   file_picker: ^13.1.0
   fluentui_system_icons: ^1.1.273

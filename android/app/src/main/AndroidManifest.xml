@@ -73,6 +73,12 @@
                     android:host="playlist"
                     android:pathPattern="/custom/.*" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="lumiere-spotify" android:host="callback" />
+            </intent-filter>
             <!-- Intent filter for handling text sharing -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

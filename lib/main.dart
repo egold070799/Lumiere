@@ -43,6 +43,7 @@ import 'package:lumiere/services/playlist_sharing.dart';
 import 'package:lumiere/services/playlists_manager.dart';
 import 'package:lumiere/services/router_service.dart';
 import 'package:lumiere/services/settings_manager.dart';
+import 'package:lumiere/services/spotify_playlist_service.dart';
 import 'package:lumiere/services/update_manager.dart';
 import 'package:lumiere/theme/app_themes.dart';
 import 'package:lumiere/utilities/flutter_toast.dart';
@@ -351,9 +352,9 @@ Future<void> initialisation() async {
 }
 
 void handleIncomingLink(Uri? uri) async {
-  if (uri == null ||
-      uri.scheme != appLinkScheme ||
-      uri.host != 'playlist') {
+  if (SpotifyPlaylistService.handleAuthorizationRedirect(uri)) return;
+
+  if (uri == null || uri.scheme != appLinkScheme || uri.host != 'playlist') {
     return;
   }
 
