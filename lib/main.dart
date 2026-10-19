@@ -1,5 +1,6 @@
 /*
  *     Copyright (C) 2026 Valeri Gokadze
+ *     Modified for Lumiere by egold070799, 2026
  *
  *     Lumiere is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -351,7 +352,7 @@ Future<void> initialisation() async {
 
 void handleIncomingLink(Uri? uri) async {
   if (uri == null ||
-      (uri.scheme != appLinkScheme && uri.scheme != 'musify') ||
+      uri.scheme != appLinkScheme ||
       uri.host != 'playlist') {
     return;
   }

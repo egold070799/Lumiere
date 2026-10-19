@@ -72,10 +72,6 @@
                     android:scheme="lumiere"
                     android:host="playlist"
                     android:pathPattern="/custom/.*" />
-                <data
-                    android:scheme="musify"
-                    android:host="playlist"
-                    android:pathPattern="/custom/.*" />
             </intent-filter>
             <!-- Intent filter for handling text sharing -->
             <intent-filter>
