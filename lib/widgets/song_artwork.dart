@@ -1,0 +1,59 @@
+
+
+import 'dart:io';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:lumiere/widgets/no_artwork_cube.dart';
+import 'package:lumiere/widgets/spinner.dart';
+
+class SongArtworkWidget extends StatelessWidget {
+  const SongArtworkWidget({
+    super.key,
+    required this.size,
+    required this.metadata,
+    this.borderRadius = 10.0,
+    this.errorWidgetIconSize = 20.0,
+  });
+  final double size;
+  final MediaItem metadata;
+  final double borderRadius;
+  final double errorWidgetIconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final cacheSize = (size * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(1, 1600)
+        .toInt();
+    return metadata.artUri?.scheme == 'file'
+        ? SizedBox(
+            width: size,
+            height: size,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: Image.file(
+                File(metadata.extras?['artWorkPath']),
+                fit: BoxFit.cover,
+                cacheWidth: cacheSize,
+                cacheHeight: cacheSize,
+              ),
+            ),
+          )
+        : CachedNetworkImage(
+            width: size,
+            height: size,
+            imageUrl: metadata.artUri.toString(),
+            memCacheWidth: cacheSize,
+            memCacheHeight: cacheSize,
+            imageBuilder: (context, imageProvider) => ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: Image(image: imageProvider, fit: BoxFit.cover),
+            ),
+            placeholder: (context, url) => const Spinner(),
+            errorWidget: (context, url, error) =>
+                NullArtworkWidget(iconSize: errorWidgetIconSize, size: size),
+          );
+  }
+}

@@ -1,0 +1,35 @@
+{
+	"nodes":[
+		{"id":"lumiere-overview","type":"file","file":"System Overview.md","x":360,"y":300,"width":300,"height":190},
+		{"id":"startup-navigation","type":"file","file":"Startup and Navigation.md","x":-80,"y":-20,"width":300,"height":190},
+		{"id":"persistence-state","type":"file","file":"Persistence and State.md","x":380,"y":-40,"width":300,"height":190},
+		{"id":"playback-flow","type":"file","file":"Playback Flow.md","x":830,"y":300,"width":300,"height":190},
+		{"id":"feature-map","type":"file","file":"Feature and Package Map.md","x":380,"y":650,"width":300,"height":190},
+		{"id":"vault-index","type":"file","file":"Index.md","x":-80,"y":650,"width":300,"height":190},
+		{"id":"graphify-status","type":"file","file":"Graphify Status.md","x":830,"y":650,"width":300,"height":190},
+		{"id":"technology-files","type":"file","file":"Technologies and Files.md","x":-500,"y":300,"width":300,"height":190},
+		{"id":"performance-optimization","type":"file","file":"Performance and Optimization.md","x":1280,"y":300,"width":330,"height":190},
+		{"id":"lumiere-plan","type":"file","file":"Lumiere Change Plan.md","x":380,"y":980,"width":330,"height":210},
+		{"id":"dark-ui","type":"file","file":"Dark UI and Design System.md","x":-60,"y":1030,"width":330,"height":210},
+		{"id":"streaming-methods","type":"file","file":"Streaming Methods.md","x":830,"y":-80,"width":330,"height":210}
+	],
+	"edges":[
+		{"id":"edge-startup-overview","fromNode":"startup-navigation","fromSide":"right","toNode":"lumiere-overview","toSide":"left","label":"boots and routes"},
+		{"id":"edge-persistence-overview","fromNode":"persistence-state","fromSide":"bottom","toNode":"lumiere-overview","toSide":"top","label":"backs shared state"},
+		{"id":"edge-overview-playback","fromNode":"lumiere-overview","fromSide":"right","toNode":"playback-flow","toSide":"left","label":"coordinates services"},
+		{"id":"edge-overview-features","fromNode":"lumiere-overview","fromSide":"bottom","toNode":"feature-map","toSide":"top","label":"organized into"},
+		{"id":"edge-index-overview","fromNode":"vault-index","fromSide":"right","toNode":"lumiere-overview","toSide":"bottom"},
+		{"id":"edge-status-index","fromNode":"graphify-status","fromSide":"left","toNode":"vault-index","toSide":"right","label":"provenance"},
+		{"id":"edge-persist-playback","fromNode":"persistence-state","fromSide":"right","toNode":"playback-flow","toSide":"top","label":"stores settings and offline media"},
+		{"id":"edge-tech-overview","fromNode":"technology-files","fromSide":"right","toNode":"lumiere-overview","toSide":"left","label":"stack and source map"},
+		{"id":"edge-optimization-playback","fromNode":"performance-optimization","fromSide":"left","toNode":"playback-flow","toSide":"right","label":"preload and stream efficiency"},
+		{"id":"edge-optimization-persistence","fromNode":"performance-optimization","fromSide":"left","toNode":"persistence-state","toSide":"right","label":"cache strategy"},
+		{"id":"edge-lumiere-plan-features","fromNode":"lumiere-plan","fromSide":"top","toNode":"feature-map","toSide":"bottom","label":"maps existing features into Lumiere"},
+		{"id":"edge-lumiere-plan-technology","fromNode":"lumiere-plan","fromSide":"left","toNode":"technology-files","toSide":"bottom","label":"planned change points"},
+		{"id":"edge-streaming-playback","fromNode":"streaming-methods","fromSide":"bottom","toNode":"playback-flow","toSide":"top","label":"source paths"},
+		{"id":"edge-streaming-optimization","fromNode":"streaming-methods","fromSide":"right","toNode":"performance-optimization","toSide":"top","label":"cache and preload behavior"},
+		{"id":"edge-dark-ui-plan","fromNode":"dark-ui","fromSide":"right","toNode":"lumiere-plan","toSide":"left","label":"implements visual direction"},
+		{"id":"edge-dark-ui-shell","fromNode":"dark-ui","fromSide":"top","toNode":"startup-navigation","toSide":"bottom","label":"styles responsive app shell"},
+		{"id":"edge-dark-ui-tech","fromNode":"dark-ui","fromSide":"left","toNode":"technology-files","toSide":"bottom","label":"theme and UI source map"}
+	]
+}
