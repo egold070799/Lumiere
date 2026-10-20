@@ -11,6 +11,7 @@ import 'package:lumiere/constants/clients.dart';
 import 'package:lumiere/main.dart';
 import 'package:lumiere/models/proxy_model.dart';
 import 'package:lumiere/services/settings_manager.dart';
+import 'package:lumiere/services/youtube_http_client_factory.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class _ProxyResources {
@@ -33,7 +34,7 @@ class ProxyManager {
   // Singleton
   factory ProxyManager() => _instance;
   ProxyManager._internal() {
-    _defaultYt = YoutubeExplode();
+    _defaultYt = YoutubeExplode(httpClient: createYoutubeHttpClient());
     _sharedYt = _defaultYt;
     if (useProxy.value) {
       unawaited(_initSharedProxyClient());

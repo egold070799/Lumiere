@@ -6,12 +6,15 @@ import 'package:lumiere/constants/artist_constants.dart';
 import 'package:lumiere/main.dart' show logger;
 import 'package:lumiere/services/data_manager.dart';
 import 'package:lumiere/services/proxy_manager.dart';
+import 'package:lumiere/services/youtube_http_client_factory.dart';
 import 'package:lumiere/utilities/app_utils.dart';
 import 'package:lumiere/utilities/formatter.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:youtube_music_explode_dart/youtube_music_explode_dart.dart';
 
-final ytMusicClient = YoutubeMusicExplode();
+final ytMusicClient = YoutubeMusicExplode(
+  httpClient: createYoutubeHttpClient(),
+);
 final Map<String, Future<void>> _artistCatalogOperationTails = {};
 
 Future<List<Map<String, dynamic>>> searchVerifiedArtists(
