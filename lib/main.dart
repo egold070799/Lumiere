@@ -318,10 +318,14 @@ Future<void> initialisation() async {
           },
         ),
       );
-    } else {
+    } else if (isDesktopPlatform) {
       // Use the desktop audio backend without mobile service plugins.
       JustAudioMediaKit.title = appDisplayName;
       JustAudioMediaKit.ensureInitialized();
+      audioHandler = LumiereAudioHandler();
+    } else {
+      // Browsers use just_audio's web backend; media_kit requires native OS
+      // libraries and path_provider has no documents directory on web.
       audioHandler = LumiereAudioHandler();
     }
 
@@ -347,8 +351,10 @@ Future<void> initialisation() async {
     logger.log('Initialization Error', error: e, stackTrace: stackTrace);
   }
 
-  applicationDirPath = (await getApplicationDocumentsDirectory()).path;
-  await FilePaths.ensureDirectoriesExist();
+  if (!kIsWeb) {
+    applicationDirPath = (await getApplicationDocumentsDirectory()).path;
+    await FilePaths.ensureDirectoriesExist();
+  }
 }
 
 void handleIncomingLink(Uri? uri) async {

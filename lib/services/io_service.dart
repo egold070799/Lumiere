@@ -1,6 +1,6 @@
-
-
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 late String applicationDirPath;
 
@@ -24,6 +24,8 @@ class FilePaths {
 
   // Ensure directories exist
   static Future<void> ensureDirectoriesExist() async {
+    if (kIsWeb) return;
+
     final tracksDirectory = Directory('$applicationDirPath/$tracksDir');
     final artworksDirectory = Directory('$applicationDirPath/$artworksDir');
 

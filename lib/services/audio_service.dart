@@ -1,5 +1,3 @@
-
-
 import 'dart:async';
 import 'dart:io';
 
@@ -24,7 +22,7 @@ import 'package:rxdart/rxdart.dart';
 
 class LumiereAudioHandler extends BaseAudioHandler implements AndroidAutoHost {
   LumiereAudioHandler() {
-    final androidEqualizer = Platform.isAndroid ? AndroidEqualizer() : null;
+    final androidEqualizer = isAndroidPlatform ? AndroidEqualizer() : null;
     _androidEqualizer = androidEqualizer;
     audioPlayer = AudioPlayer(
       handleInterruptions: isMobilePlatform,
