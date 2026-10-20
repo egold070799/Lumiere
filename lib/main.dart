@@ -29,13 +29,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lumiere/constants/app_constants.dart';
 import 'package:lumiere/extensions/l10n.dart';
 import 'package:lumiere/localization/app_localizations.dart';
 import 'package:lumiere/services/audio_service.dart';
 import 'package:lumiere/services/data_manager.dart';
+import 'package:lumiere/services/desktop_audio_backend.dart';
 import 'package:lumiere/services/io_service.dart';
 import 'package:lumiere/services/listening_stats_service.dart';
 import 'package:lumiere/services/logger_service.dart';
@@ -122,7 +122,9 @@ class _LumiereState extends State<Lumiere> with WidgetsBindingObserver {
 
     WidgetsBinding.instance.addObserver(this);
 
-    if (isMobilePlatform) {
+    if (kIsWeb) {
+      audioHandler = LumiereAudioHandler();
+    } else if (isMobilePlatform) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
 
@@ -320,8 +322,7 @@ Future<void> initialisation() async {
       );
     } else if (isDesktopPlatform) {
       // Use the desktop audio backend without mobile service plugins.
-      JustAudioMediaKit.title = appDisplayName;
-      JustAudioMediaKit.ensureInitialized();
+      initializeDesktopAudioBackend(appDisplayName);
       audioHandler = LumiereAudioHandler();
     } else {
       // Browsers use just_audio's web backend; media_kit requires native OS
