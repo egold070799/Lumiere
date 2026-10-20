@@ -8,13 +8,13 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.core.view.WindowCompat
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
   private val updateChannelName = "com.egold070799.lumiere/app_update"
 
   override fun onCreate(savedInstanceState: Bundle?) {

@@ -296,7 +296,11 @@ Future<void> _downloadAndInstallUpdate(String url, String version) async {
       stackTrace: stackTrace,
     );
     if (context.mounted) {
-      showToast(context, context.l10n!.updateDownloadFailed);
+      showToast(
+        context,
+        '${context.l10n!.updateDownloadFailed}\n$error',
+        duration: const Duration(seconds: 8),
+      );
     }
   }
 }

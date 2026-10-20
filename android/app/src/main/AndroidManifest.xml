@@ -36,9 +36,9 @@
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">
 
-        <!-- AudioServiceActivity -->
+        <!-- AudioServiceActivity subclass also registers Lumiere's native updater channel. -->
         <activity
-            android:name="com.ryanheise.audioservice.AudioServiceActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:allowCrossUidActivitySwitchFromBelow="false"
