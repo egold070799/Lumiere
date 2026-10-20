@@ -1,6 +1,5 @@
-
-
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -9,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:lumiere/constants/clients.dart';
+import 'package:lumiere/models/lyrics_track.dart';
 import 'package:lumiere/main.dart' show logger;
 import 'package:lumiere/services/data_manager.dart';
 import 'package:lumiere/services/io_service.dart';
@@ -62,8 +62,8 @@ final _cachedOfflineSongIds = _createSongIdCache(userOfflineSongs);
 var _songLikeUpdateToken = 0;
 final _latestSongLikeUpdateTokens = <String, int>{};
 
-final lyrics = ValueNotifier<String?>(null);
-String? lastFetchedLyrics;
+final LinkedHashMap<String, LyricsTrack> _lyricsCache = LinkedHashMap();
+final Map<String, Future<LyricsTrack?>> _pendingLyricsRequests = {};
 
 void reloadSongLibraryStateFromStorage() {
   final userBox = Hive.box('user');
@@ -769,24 +769,47 @@ Future<Map<String, dynamic>> getSongDetails(
   }
 }
 
-Future<String?> getSongLyrics(String? artist, String title) async {
-  if (artist == null) return null;
-  if (lastFetchedLyrics != '$artist - $title') {
-    lyrics.value = null;
-    var _lyrics = await LyricsManager().fetchLyrics(artist, title);
-    if (_lyrics != null) {
-      _lyrics = _lyrics.replaceAll(RegExp(r'\n{4}'), '\n\n');
-      _lyrics = _lyrics.replaceAll(RegExp(r'\n{2}'), '\n');
-      lyrics.value = _lyrics;
-    } else {
-      return null;
-    }
+Future<LyricsTrack?> getSongLyrics(
+  String? artist,
+  String title, {
+  String? albumName,
+  Duration? duration,
+}) async {
+  if (artist == null || artist.trim().isEmpty) return null;
 
-    lastFetchedLyrics = '$artist - $title';
-    return _lyrics;
+  final key = [
+    artist.trim().toLowerCase(),
+    title.trim().toLowerCase(),
+    albumName?.trim().toLowerCase() ?? '',
+    duration?.inSeconds.toString() ?? '',
+  ].join('|');
+  final cached = _lyricsCache.remove(key);
+  if (cached != null) {
+    _lyricsCache[key] = cached;
+    return cached;
   }
 
-  return lyrics.value;
+  final pending = _pendingLyricsRequests[key];
+  if (pending != null) return pending;
+
+  final request = LyricsManager().fetchLyrics(
+    artist,
+    title,
+    albumName: albumName,
+    duration: duration,
+  );
+  _pendingLyricsRequests[key] = request;
+  try {
+    final result = await request;
+    if (result != null) {
+      _lyricsCache[key] = result;
+      if (_lyricsCache.length > 40)
+        _lyricsCache.remove(_lyricsCache.keys.first);
+    }
+    return result;
+  } finally {
+    _pendingLyricsRequests.remove(key);
+  }
 }
 
 Future<bool> makeSongOffline(dynamic song) async {

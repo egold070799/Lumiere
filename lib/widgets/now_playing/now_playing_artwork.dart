@@ -1,11 +1,12 @@
-
-
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lumiere/extensions/l10n.dart';
+import 'package:lumiere/main.dart' show audioHandler;
+import 'package:lumiere/models/lyrics_track.dart';
+import 'package:lumiere/models/position_data.dart';
 import 'package:lumiere/services/common_services.dart';
 import 'package:lumiere/services/settings_manager.dart';
 import 'package:lumiere/utilities/async_loader.dart';
@@ -110,7 +111,7 @@ class _LyricsView extends StatefulWidget {
 
 class _LyricsViewState extends State<_LyricsView> {
   String? _resolvedKey;
-  late Future<String?> _lyricsFuture;
+  late Future<LyricsTrack?> _lyricsFuture;
 
   @override
   void initState() {
@@ -125,12 +126,19 @@ class _LyricsViewState extends State<_LyricsView> {
   }
 
   void _resolveIfNeeded() {
-    final key = '${widget.metadata.artist} - ${widget.metadata.title}';
+    final key = [
+      widget.metadata.artist,
+      widget.metadata.title,
+      widget.metadata.album,
+      widget.metadata.duration?.inSeconds,
+    ].join('|');
     if (key == _resolvedKey) return;
     _resolvedKey = key;
     _lyricsFuture = getSongLyrics(
       widget.metadata.artist,
       widget.metadata.title,
+      albumName: widget.metadata.album,
+      duration: widget.metadata.duration,
     );
   }
 
@@ -161,24 +169,142 @@ class _LyricsViewState extends State<_LyricsView> {
       ),
     );
 
-    return AsyncLoader<String?>(
+    return AsyncLoader<LyricsTrack?>(
       future: _lyricsFuture,
       emptyWidget: unavailable(),
       errorBuilder: (ctx, error, stack) => unavailable(),
-      builder: (context, lyrics) => SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        physics: const BouncingScrollPhysics(),
-        child: Text(
-          lyrics ?? context.l10n!.lyricsNotAvailable,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSecondaryContainer,
-            height: 1.6,
+      builder: (context, track) {
+        if (track == null || !track.hasLyrics) return unavailable();
+        if (track.isSynced) {
+          return _SyncedLyricsView(key: ValueKey(_resolvedKey), track: track);
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          physics: const BouncingScrollPhysics(),
+          child: Text(
+            track.plainLyrics,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: colorScheme.onSecondaryContainer,
+              height: 1.6,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ),
+        );
+      },
+    );
+  }
+}
+
+class _SyncedLyricsView extends StatefulWidget {
+  const _SyncedLyricsView({super.key, required this.track});
+
+  final LyricsTrack track;
+
+  @override
+  State<_SyncedLyricsView> createState() => _SyncedLyricsViewState();
+}
+
+class _SyncedLyricsViewState extends State<_SyncedLyricsView> {
+  late final List<GlobalKey> _lineKeys = List.generate(
+    widget.track.syncedLines.length,
+    (_) => GlobalKey(),
+  );
+  int _lastActiveLine = -2;
+
+  void _keepActiveLineVisible(int index) {
+    if (index < 0 || index >= _lineKeys.length || index == _lastActiveLine) {
+      return;
+    }
+    _lastActiveLine = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final lineContext = _lineKeys[index].currentContext;
+      if (!mounted || lineContext == null) return;
+      Scrollable.ensureVisible(
+        lineContext,
+        alignment: 0.46,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return StreamBuilder<PositionData>(
+      stream: audioHandler.positionDataStream,
+      initialData: audioHandler.currentPositionData,
+      builder: (context, snapshot) {
+        final position = snapshot.data?.position ?? Duration.zero;
+        final activeLine = widget.track.activeLineAt(position);
+        _keepActiveLineVisible(activeLine);
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 18, bottom: 8),
+              child: Text(
+                'SYNCED LYRICS · ${widget.track.source}',
+                style: TextStyle(
+                  color: colors.onSecondaryContainer.withValues(alpha: 0.65),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    for (
+                      var index = 0;
+                      index < widget.track.syncedLines.length;
+                      index++
+                    )
+                      AnimatedContainer(
+                        key: _lineKeys[index],
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: index == activeLine
+                              ? colors.primary.withValues(alpha: 0.16)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          widget.track.syncedLines[index].text,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: index == activeLine
+                                ? colors.primary
+                                : colors.onSecondaryContainer.withValues(
+                                    alpha: index < activeLine ? 0.58 : 0.82,
+                                  ),
+                            fontSize: index == activeLine ? 19 : 17,
+                            fontWeight: index == activeLine
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
