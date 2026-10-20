@@ -23,8 +23,8 @@ class _YoutubeProxyBrowserClient extends http.BaseClient {
 
     final origin = Uri.base;
     return origin.replace(
-      path: '/api/youtube/$host${uri.path}',
-      query: uri.hasQuery ? uri.query : null,
+      path: '/api/youtube',
+      queryParameters: {'url': uri.toString()},
       fragment: '',
     );
   }

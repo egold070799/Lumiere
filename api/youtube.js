@@ -28,7 +28,7 @@ function isAllowedTarget(url) {
 
 function localProxyUrl(target) {
   if (!isAllowedTarget(target)) return null;
-  return `/api/youtube/${target.hostname}${target.pathname}${target.search}`;
+  return `/api/youtube?url=${encodeURIComponent(target.toString())}`;
 }
 
 function copyResponseHeaders(upstream, response) {
@@ -58,24 +58,17 @@ function copyResponseHeaders(upstream, response) {
 }
 
 module.exports = async function youtubeProxy(req, res) {
-  const routeTarget = req.query.target;
-  const targetParts = Array.isArray(routeTarget)
-    ? routeTarget
-    : typeof routeTarget === 'string'
-      ? routeTarget.split('/')
-      : [];
-  if (targetParts.length < 2) {
-    res.status(400).send('Invalid YouTube proxy path');
+  const rawUrl = req.query.url;
+  if (typeof rawUrl !== 'string') {
+    res.status(400).send('Missing YouTube URL');
     return;
   }
 
-  const [host, ...pathParts] = targetParts;
   let target;
   try {
-    target = new URL(`https://${host}/${pathParts.join('/')}`);
-    target.search = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    target = new URL(rawUrl);
   } catch {
-    res.status(400).send('Invalid YouTube proxy target');
+    res.status(400).send('Invalid YouTube URL');
     return;
   }
 
@@ -105,7 +98,7 @@ module.exports = async function youtubeProxy(req, res) {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
     );
   }
-  if (!headers.has('cookie') && FIXED_HOSTS.has(target.hostname)) {
+  if (FIXED_HOSTS.has(target.hostname) && !headers.has('cookie')) {
     headers.set('cookie', 'CONSENT=YES+cb');
   }
 
@@ -121,7 +114,6 @@ module.exports = async function youtubeProxy(req, res) {
 
     res.statusCode = upstream.status;
     copyResponseHeaders(upstream, res);
-
     if (upstream.body) {
       await pipeline(Readable.fromWeb(upstream.body), res);
     } else {
